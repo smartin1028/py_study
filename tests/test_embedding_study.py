@@ -381,8 +381,9 @@ _MOCK_OLLAMA_RESPONSE = {
 
 
 class TestOllamaEmbedderMock:
-    def test_encode_calls_ollama_api_correctly(self):
+    def test_encode_calls_ollama_api_correctly(self, monkeypatch):
         # Given
+        monkeypatch.setenv("OLLAMA_EMBED_MODEL", "bge-m3:567m")
         import requests
 
         mock_resp = Mock(spec=requests.Response)
@@ -399,11 +400,12 @@ class TestOllamaEmbedderMock:
             mock_post.assert_called_once()
             call_args = mock_post.call_args
             assert call_args[0][0] == "http://localhost:11434/api/embed"
-            assert call_args[1]["json"]["model"] == "mxbai-embed-large:335m"
+            assert call_args[1]["json"]["model"] == "bge-m3:567m"
             assert call_args[1]["json"]["input"] == ["hello", "world"]
             assert result.shape == (2, 4)
 
-    def test_encode_uses_custom_base_url(self):
+    def test_encode_uses_custom_base_url(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_EMBED_MODEL", "bge-m3:567m")
         import requests
 
         mock_resp = Mock(spec=requests.Response)
@@ -417,7 +419,8 @@ class TestOllamaEmbedderMock:
             mock_post.assert_called_once()
             assert mock_post.call_args[0][0] == "http://192.168.1.100:8080/api/embed"
 
-    def test_dim_infers_from_encode(self):
+    def test_dim_infers_from_encode(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_EMBED_MODEL", "bge-m3:567m")
         import requests
 
         mock_resp = Mock(spec=requests.Response)
@@ -430,7 +433,8 @@ class TestOllamaEmbedderMock:
             embedder.encode(["hello"])
             assert embedder.dim == 4
 
-    def test_dim_triggers_encode_when_not_called(self):
+    def test_dim_triggers_encode_when_not_called(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_EMBED_MODEL", "bge-m3:567m")
         import requests
 
         mock_resp = Mock(spec=requests.Response)
@@ -442,7 +446,8 @@ class TestOllamaEmbedderMock:
             # encode 없이 dim 접근 → 자동으로 dummy encode
             assert embedder.dim == 4
 
-    def test_similarity_uses_cosine(self):
+    def test_similarity_uses_cosine(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_EMBED_MODEL", "bge-m3:567m")
         import requests
 
         mock_resp = Mock(spec=requests.Response)
