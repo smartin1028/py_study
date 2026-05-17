@@ -56,6 +56,16 @@ uv run uvicorn src.app.tool_demo_main:app --reload
 uv run pytest
 ```
 
+## 문서 목록
+
+- [Embedding Guide](embedding-guide.md) — 임베딩 생성 기본 가이드
+- [Embedding Model Comparison](embedding-model-comparison.md) — 임베딩 모델 성능 비교
+- [Menu Embedding Guide](menu-embedding-guide.md) — 메뉴 임베딩 히트맵 해석 가이드
+- [Vector DB Guide](vector-db-guide.md) — 벡터 DB 개념, 종류, 사용법, pgvector 연동
+- [Testing Guide](testing-guide.md) — 테스트 작성 가이드
+- [pytest vs Java](pytest-vs-java.md) — Python pytest와 Java 테스트 비교
+- [Scenario Results](scenario-results.md) — 시나리오 실행 결과
+
 ## 라이선스
 
 MIT License — Copyright (c) 2026 EumGrowth

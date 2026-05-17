@@ -12,6 +12,9 @@ from src.embedding_study.search import (
     demonstrate_semantic_search,
 )
 from src.embedding_study.rag import RAGPipeline, demonstrate_rag_pipeline
+from src.embedding_study.db_vector_store import DatabaseVectorStore
+from src.embedding_study.oracle_vector_store import OracleVectorStore
+from src.embedding_study.mariadb_vector_store import MariaDBVectorStore
 from src.embedding_study.llm_integration import (
     DeepSeekLLM,
     ScenarioResult,
@@ -22,6 +25,15 @@ from src.embedding_study.llm_integration import (
     scenario_4_full_rag,
     run_all_scenarios,
 )
+from src.embedding_study.menu_demo import (
+    build_menu_similarity_matrix,
+    build_menu_vectors,
+    demonstrate_menu_embedding,
+    get_menu_data,
+    plot_2d_scatter,
+    plot_3d_scatter,
+    plot_similarity_heatmap,
+)
 
 __all__ = [
     "Embedder",
@@ -29,6 +41,9 @@ __all__ = [
     "SentenceEmbedder",
     "OllamaEmbedder",
     "InMemoryVectorStore",
+    "DatabaseVectorStore",
+    "OracleVectorStore",
+    "MariaDBVectorStore",
     "RAGPipeline",
     "build_knowledge_base",
     "demonstrate_embedding_basics",
@@ -42,4 +57,11 @@ __all__ = [
     "scenario_3_embedding_llm",
     "scenario_4_full_rag",
     "run_all_scenarios",
+    "build_menu_similarity_matrix",
+    "demonstrate_menu_embedding",
+    "get_menu_data",
+    "build_menu_vectors",
+    "plot_2d_scatter",
+    "plot_3d_scatter",
+    "plot_similarity_heatmap",
 ]

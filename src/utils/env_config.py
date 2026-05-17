@@ -55,5 +55,45 @@ class Config:
         """OLLAMA_EMBED_MODEL — Ollama 임베딩 모델명."""
         return os.environ.get("OLLAMA_EMBED_MODEL", "mxbai-embed-large:335m")
 
+    @property
+    def database_url(self) -> str:
+        """DATABASE_URL — pgvector 지원 PostgreSQL 연결 문자열."""
+        return os.environ.get("DATABASE_URL", "postgresql://localhost:5432/pytool")
+
+    @property
+    def oracle_user(self) -> str:
+        """ORACLE_USER — Oracle DB 사용자명."""
+        return os.environ.get("ORACLE_USER", "pytool")
+
+    @property
+    def oracle_password(self) -> str:
+        """ORACLE_PASSWORD — Oracle DB 비밀번호."""
+        return os.environ.get("ORACLE_PASSWORD", "")
+
+    @property
+    def oracle_dsn(self) -> str:
+        """ORACLE_DSN — Oracle DB 접속 문자열 (host:port/service_name)."""
+        return os.environ.get("ORACLE_DSN", "localhost:1522/FREEPDB1")
+
+    @property
+    def mariadb_host(self) -> str:
+        """MARIADB_HOST — MariaDB 호스트."""
+        return os.environ.get("MARIADB_HOST", "localhost")
+
+    @property
+    def mariadb_user(self) -> str:
+        """MARIADB_USER — MariaDB 사용자명."""
+        return os.environ.get("MARIADB_USER", "root")
+
+    @property
+    def mariadb_password(self) -> str:
+        """MARIADB_PASSWORD — MariaDB 비밀번호."""
+        return os.environ.get("MARIADB_PASSWORD", "")
+
+    @property
+    def mariadb_database(self) -> str:
+        """MARIADB_DATABASE — MariaDB 데이터베이스명."""
+        return os.environ.get("MARIADB_DATABASE", "pytool")
+
 
 config = Config()

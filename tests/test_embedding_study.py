@@ -17,6 +17,14 @@ from src.embedding_study.search import (
     build_knowledge_base,
     keyword_vs_semantic_comparison,
 )
+from src.embedding_study.menu_demo import (
+    build_menu_similarity_matrix,
+    build_menu_vectors,
+    get_menu_data,
+    plot_2d_scatter,
+    plot_3d_scatter,
+    plot_similarity_heatmap,
+)
 from src.embedding_study.rag import RAGPipeline, explain_rag_benefits
 
 
@@ -472,3 +480,193 @@ class TestOllamaEmbedderMock:
             embedder.encode(["test"])
 
             assert mock_post.call_args[1]["json"]["model"] == "nomic-embed-text"
+
+
+# ---------------------------------------------------------------------------
+# 메뉴 임베딩용 mock fixture
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def mock_menu_embedder() -> Mock:
+    """메뉴 카테고리별로 구분된 4차원 벡터를 반환하는 mock Embedder.
+
+    메뉴 설명 텍스트에 포함된 키워드로 카테고리를 판별하여 one-hot 형태의
+    벡터를 반환한다. 같은 카테고리 내 항목들은 코사인 유사도가 1.0,
+    다른 카테고리 간은 0.0이 되도록 설계되어 있다.
+
+    매핑 규칙:
+        - "espresso" 또는 "coffee" 포함 → Coffee   [1, 0, 0, 0]
+        - "tea" 또는 "lemon" 포함      → Tea       [0, 1, 0, 0]
+        - "cake", "brownie", "chocolate" 포함 → Dessert [0, 0, 1, 0]
+        - 그 외                          → Unknown   [0, 0, 0, 1]
+    """
+    embedder = Mock(spec=Embedder)
+    embedder.dim = 4
+
+    def encode_side_effect(texts: list[str]) -> np.ndarray:
+        vectors = []
+        for t in texts:
+            lower = t.lower()
+            if "espresso" in lower or "coffee" in lower:
+                vectors.append([1.0, 0.0, 0.0, 0.0])  # Coffee 클러스터
+            elif "tea" in lower or "lemon" in lower:
+                vectors.append([0.0, 1.0, 0.0, 0.0])  # Tea 클러스터
+            elif "cake" in lower or "brownie" in lower or "chocolate" in lower:
+                vectors.append([0.0, 0.0, 1.0, 0.0])  # Dessert 클러스터
+            else:
+                vectors.append([0.0, 0.0, 0.0, 1.0])  # Unknown 클러스터
+        return np.array(vectors, dtype=np.float32)
+
+    embedder.encode.side_effect = encode_side_effect
+    embedder.similarity.side_effect = lambda a, b: cosine_similarity_manual(
+        np.asarray(a), np.asarray(b)
+    )
+    return embedder
+
+
+# ---------------------------------------------------------------------------
+# TestMenuEmbedding — 메뉴 임베딩 기능 단위 테스트
+# ---------------------------------------------------------------------------
+
+
+class TestMenuEmbedding:
+    """메뉴 데이터, 유사도 행렬, 차트 생성 기능을 검증한다.
+
+    모든 테스트는 mock_menu_embedder fixture를 사용하여 실제 모델 없이
+    수 밀리초 내에 실행된다.
+    """
+
+    def test_menu_data_has_eight_items(self):
+        """메뉴 데이터는 8개 항목이며 모든 필수 키를 포함해야 한다."""
+        # When
+        items = get_menu_data()
+
+        # Then
+        assert len(items) == 8
+        for item in items:
+            assert "category" in item, f"category 키 누락: {item}"
+            assert "name" in item, f"name 키 누락: {item}"
+            assert "desc" in item, f"desc 키 누락: {item}"
+            assert "price" in item, f"price 키 누락: {item}"
+
+    def test_menu_data_categories(self):
+        """카테고리는 Coffee 4개, Tea 2개, Dessert 2개로 구성되어야 한다."""
+        # When
+        items = get_menu_data()
+
+        # Then
+        categories = {item["category"] for item in items}
+        assert categories == {"Coffee", "Tea", "Dessert"}
+        coffee_count = sum(1 for item in items if item["category"] == "Coffee")
+        tea_count = sum(1 for item in items if item["category"] == "Tea")
+        dessert_count = sum(1 for item in items if item["category"] == "Dessert")
+        assert coffee_count == 4
+        assert tea_count == 2
+        assert dessert_count == 2
+
+    def test_similarity_matrix_shape(self, mock_menu_embedder):
+        """유사도 행렬은 8x8 크기이며 대각선은 1.0, 행렬은 대칭이어야 한다."""
+        # When
+        matrix, labels = build_menu_similarity_matrix(mock_menu_embedder)
+
+        # Then
+        assert matrix.shape == (8, 8)
+        assert len(labels) == 8
+        # 자기 자신과의 유사도는 항상 1.0
+        for i in range(8):
+            assert matrix[i][i] == pytest.approx(1.0, abs=1e-6)
+        # 코사인 유사도 행렬은 대칭이다: sim(A,B) == sim(B,A)
+        assert np.allclose(matrix, matrix.T)
+
+    def test_coffee_items_more_similar_than_cross_category(self, mock_menu_embedder):
+        """같은 카테고리(커피-커피)가 다른 카테고리(커피-디저트)보다 유사도가 높아야 한다."""
+        # Given: Americano=idx0, Cappuccino=idx2, Brownie=idx7
+        matrix, _ = build_menu_similarity_matrix(mock_menu_embedder)
+
+        # When
+        coffee_sim = matrix[0][2]  # Americano ↔ Cappuccino (둘 다 Coffee)
+        cross_sim = matrix[0][7]   # Americano ↔ Brownie (Coffee ↔ Dessert)
+
+        # Then: 같은 카테고리 내 유사도가 교차 카테고리보다 높다
+        assert coffee_sim > cross_sim
+
+    def test_intra_coffee_above_intra_dessert(self, mock_menu_embedder):
+        """mock 기준으로 커피 내 평균 유사도와 디저트 내 평균 유사도는 모두 1.0이다."""
+        matrix, labels = build_menu_similarity_matrix(mock_menu_embedder)
+
+        # 라벨 텍스트에서 카테고리를 역추론하여 인덱스 분류
+        coffee_indices = [i for i, lbl in enumerate(labels) if "Americano" in lbl
+                          or "Latte" in lbl or "Cappuccino" in lbl or "Espresso" in lbl]
+        dessert_indices = [i for i, lbl in enumerate(labels) if "Cheesecake" in lbl
+                           or "Brownie" in lbl]
+
+        # 같은 카테고리 내 대각선을 제외한 상삼각 평균
+        intra_coffee = float(np.mean([matrix[i][j] for i in coffee_indices
+                                      for j in coffee_indices if i < j]))
+        intra_dessert = float(np.mean([matrix[i][j] for i in dessert_indices
+                                       for j in dessert_indices if i < j]))
+
+        # mock 벡터는 같은 카테고리 내에서 완전히 동일하므로 유사도 1.0
+        assert intra_coffee == pytest.approx(1.0, abs=1e-6)
+        assert intra_dessert == pytest.approx(1.0, abs=1e-6)
+
+    def test_similarity_matrix_values_in_range(self, mock_menu_embedder):
+        """유사도 행렬의 모든 값은 코사인 유사도 정의역 [-1, 1] 내에 있어야 한다."""
+        matrix, _ = build_menu_similarity_matrix(mock_menu_embedder)
+
+        assert np.all(matrix >= -1.0)
+        assert np.all(matrix <= 1.0)
+
+    def test_heatmap_file_created(self, mock_menu_embedder, tmp_path):
+        """plot_similarity_heatmap이 유효한 PNG 파일을 생성해야 한다."""
+        # Given
+        matrix, labels = build_menu_similarity_matrix(mock_menu_embedder)
+        save_path = str(tmp_path / "test_heatmap.png")
+
+        # When
+        plot_similarity_heatmap(matrix, labels, save_path=save_path)
+
+        # Then: 파일이 존재하고 크기가 0보다 크다
+        import os
+        assert os.path.exists(save_path)
+        assert os.path.getsize(save_path) > 0, "PNG 파일이 비어 있음"
+
+    def test_2d_scatter_file_created(self, mock_menu_embedder, tmp_path):
+        """plot_2d_scatter가 유효한 PNG 파일을 생성해야 한다."""
+        # Given
+        vectors, names, categories = build_menu_vectors(mock_menu_embedder)
+        save_path = str(tmp_path / "test_2d_scatter.png")
+
+        # When
+        plot_2d_scatter(vectors, names, categories, save_path=save_path)
+
+        # Then
+        import os
+        assert os.path.exists(save_path)
+        assert os.path.getsize(save_path) > 0
+
+    def test_build_menu_vectors_shape(self, mock_menu_embedder):
+        """build_menu_vectors는 (8, dim) 벡터와 올바른 메타데이터를 반환해야 한다."""
+        # When
+        vectors, names, categories = build_menu_vectors(mock_menu_embedder)
+
+        # Then
+        assert vectors.shape == (8, 4), f"예상 (8, 4), 실제 {vectors.shape}"
+        assert len(names) == 8
+        assert len(categories) == 8
+        assert set(categories) == {"Coffee", "Tea", "Dessert"}
+
+    def test_3d_scatter_file_created(self, mock_menu_embedder, tmp_path):
+        """plot_3d_scatter가 유효한 PNG 파일을 생성해야 한다."""
+        # Given
+        vectors, names, categories = build_menu_vectors(mock_menu_embedder)
+        save_path = str(tmp_path / "test_3d_scatter.png")
+
+        # When
+        plot_3d_scatter(vectors, names, categories, save_path=save_path)
+
+        # Then
+        import os
+        assert os.path.exists(save_path)
+        assert os.path.getsize(save_path) > 0
